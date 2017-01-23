@@ -111,6 +111,47 @@ for i in range(len(frames)):
 
 	entropy_profile[i] = H
 
+#################################################
+# Step 5: Determine entropy threshold
+#################################################
+
+# Use the entropy profile to find an appropriate threshold
+
+# only constraint on mu is that its greater than 0
+# try some small number
+mu = 0.1
+
+# compute threshold
+gamma = ((max(entropy_profile) - min(entropy_profile))/2 ) + mu*min(entropy_profile)
+
+
+
+#################################################
+# Step 6: Apply entropy threshold to data
+#################################################
+
+thresholded_entropy_profile = np.empty([len(entropy_profile)])
+
+# apply this threshold to our entropy profile, zeroing out values below the threshold
+for i in range(len(entropy_profile)):
+	if entropy_profile[i] >= gamma:
+		thresholded_entropy_profile[i] = entropy_profile[i]
+	else:
+		thresholded_entropy_profile[i] = 0
+
+# due to artifacts, there may be false positives or negatives
+# add more criteria...
+
+#################################################
+# Step 7: Apply speech segment size constraint
+#################################################
+
+# We make an assumption here that humans do not produce very short duration sounds
+# So impose a requirement that the segments have a minimum length, l_i
+# l_i = e_i - s_i 
+# where s_i is the starting point of the ith frame and e_i is the ending
+
+#
 
 '''
 # Use fft to recover frequency from our filtered amplitude
