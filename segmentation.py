@@ -20,12 +20,14 @@ import numpy as np
 import scipy
 from scipy.fftpack import rfft, irfft, fftfreq
 from scipy.io import wavfile
+import scipy.stats
 import matplotlib.pyplot as plt
 import python_speech_features as speech
 
-sample = 'samples/sf1_fi1' # To be added feature: make this an argument passed in by the user
+sample = 'harvard_sentences/OSR_us_000_0010_8k' # To be added feature: make this an argument passed in by the user
 
 input_filename = sample + '.wav'
+output_filename = sample + '.png'
 
 rate, data = wavfile.read(input_filename)
 
@@ -95,7 +97,7 @@ for i in range(len(frames)):
 
 	# take histogram
 
-	frame_hist, frame_bin_edges = np.histogram(frame_freq, N, None, True, None, None )
+	frame_hist, frame_bin_edges = np.histogram(frame_freq, N, None, True, None, None)
 
 
 #################################################
@@ -151,31 +153,45 @@ for i in range(len(entropy_profile)):
 # l_i = e_i - s_i 
 # where s_i is the starting point of the ith frame and e_i is the ending
 
-#
+# l_i should be the shortest phenome/phone and is a function of sampling freq.
 
-'''
-# Use fft to recover frequency from our filtered amplitude
+# additionally, we want to merge very short sounds into a single segment
 
-	#k = arange(len(filtered_data))
-	#T = len(filtered_data)/rate
-	#frq_label = k /T
+#################################################
+# Step 8: Put it all  back together
+#################################################
 
+# Build a step function where it is 1 when thresholded entropy is non-zero
 
-	complex = scipy.fft(preemp_data)
-	d = len(complex)
+speech_present = max(data)
+no_speech = 0
 
-	shifted = np.fft.fftshift(complex)
-	
-	fig = plt.plot(abs(shifted[:(d-1)]), 'm')
+# Need to create a way to correspond sample to its window
 
-	# plotting for sanity check
-	plt.setp(fig, linewidth=0.25)
-	plt.savefig('fftfoo_shift.png')
-	plt.clf()
-	
-	# Normal voice range is 500 Hz to 2 kHz, so apply a hackish "band pass filter" to include only those
+result = np.empty([len(data),2])
 
+window_counter = 0
+current_window_length = frame_length
 
-	# after filtering, recover our signal
+# remember frame_length is the number of samples in each frame
 
-	recovered_signal = scipy.ifft(shifted)'''
+for i in range(len(data)):
+	if i < current_window_length:
+		result[i,0] = window_counter
+	else:
+		window_counter += 1
+		result[i,0] = window_counter
+		current_window_length = current_window_length + frame_length
+
+	this_windows_entropy = thresholded_entropy_profile[window_counter]
+
+	if this_windows_entropy != 0:
+		result[i,1] = speech_present
+	else:
+		result[i,1] = no_speech
+
+final_fig = plt.figure(figsize=(15, 12), dpi=500)
+plt.plot(data, linewidth=0.1, color='m')
+plt.plot(result[:,1], linewidth=0.25)
+plt.savefig(output_filename)
+plt.clf()
