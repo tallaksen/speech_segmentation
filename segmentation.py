@@ -24,8 +24,9 @@ import scipy.stats
 import matplotlib.pyplot as plt
 import python_speech_features as speech
 
-sample = 'harvard_sentences/OSR_us_000_0010_8k' # To be added feature: make this an argument passed in by the user
+#sample = 'harvard_sentences/OSR_us_000_0010_8k' # To be added feature: make this an argument passed in by the user
 
+sample = 'samples/sm3_fi1'
 input_filename = sample + '.wav'
 output_filename = sample + '.png'
 
@@ -64,7 +65,7 @@ num_windows = int(duration / frame_duration_in_seconds)
 
 frame_length = num_samples / float(num_windows)
 
-amount_overlap = 0.5 # 25-50%
+amount_overlap = 0.75 # 25-50%
 
 frame_step = frame_length * amount_overlap
 
@@ -93,7 +94,7 @@ for i in range(len(frames)):
 	#print frame_freq
 
 	# number of bins
-	N = 50
+	N = 100
 
 	# take histogram
 
@@ -120,8 +121,9 @@ for i in range(len(frames)):
 # Use the entropy profile to find an appropriate threshold
 
 # only constraint on mu is that its greater than 0
-# try some small number
-mu = 0.1
+# this value depends on the noise
+# for noise, use a large number
+mu = 0.5
 
 # compute threshold
 gamma = ((max(entropy_profile) - min(entropy_profile))/2 ) + mu*min(entropy_profile)
@@ -140,6 +142,31 @@ for i in range(len(entropy_profile)):
 		thresholded_entropy_profile[i] = entropy_profile[i]
 	else:
 		thresholded_entropy_profile[i] = 0
+'''
+plt.plot(thresholded_entropy_profile, linewidth=0.5, color='m')
+plt.savefig('entropy.png')
+plt.clf()
+'''
+smoothed_entropy = np.copy(thresholded_entropy_profile)
+
+for i in range(len(smoothed_entropy)-1):
+	if i == 0:
+		print 'first element'
+	else:
+		value = thresholded_entropy_profile[i]
+		if value == 0:
+			if thresholded_entropy_profile[i-1] != 0. and thresholded_entropy_profile[i+1] != 0.:
+				smoothed_entropy[i] = thresholded_entropy_profile[i-1]
+		else:
+			if (thresholded_entropy_profile[i-1] == 0.) and (thresholded_entropy_profile[i+1] == 0.):
+				smoothed_entropy[i] = 0
+
+
+plt.plot(thresholded_entropy_profile, linewidth=2, color='m')
+plt.plot(smoothed_entropy, 'k--', linewidth=1)
+plt.savefig('entropy.png')
+plt.clf()
+
 
 # due to artifacts, there may be false positives or negatives
 # add more criteria...
@@ -153,7 +180,7 @@ for i in range(len(entropy_profile)):
 # l_i = e_i - s_i 
 # where s_i is the starting point of the ith frame and e_i is the ending
 
-# l_i should be the shortest phenome/phone and is a function of sampling freq.
+# l_i should be the shortest phoneme/phone and is a function of sampling freq.
 
 # additionally, we want to merge very short sounds into a single segment
 
@@ -162,13 +189,13 @@ for i in range(len(entropy_profile)):
 #################################################
 
 # Build a step function where it is 1 when thresholded entropy is non-zero
-
-speech_present = max(data)
+'''
+speech_present = data.max()
 no_speech = 0
 
 # Need to create a way to correspond sample to its window
 
-result = np.empty([len(data),2])
+result = np.empty([len(data),3])
 
 window_counter = 0
 current_window_length = frame_length
@@ -184,14 +211,17 @@ for i in range(len(data)):
 		current_window_length = current_window_length + frame_length
 
 	this_windows_entropy = thresholded_entropy_profile[window_counter]
+	result[i,2] = this_windows_entropy
 
 	if this_windows_entropy != 0:
 		result[i,1] = speech_present
 	else:
 		result[i,1] = no_speech
 
-final_fig = plt.figure(figsize=(15, 12), dpi=500)
+final_fig = plt.figure(figsize=(8, 4), dpi=300)
 plt.plot(data, linewidth=0.1, color='m')
-plt.plot(result[:,1], linewidth=0.25)
+plt.plot(result[:,1], linewidth=0.5)
+#plt.plot(result[:,2], linewidth=0.5)
 plt.savefig(output_filename)
 plt.clf()
+'''
