@@ -6,7 +6,7 @@ Steps:
 1. Pre-processing stage (add a pre-emph filter + other filter)
 2. Choose speech window
 3. Determine short time prob. distr. using histogram
-4. Compute weighted entropy of speech frame
+4. Compute entropy of speech frame
 5. Determine the adaptive threshold for entropy profile
 6. Threshold the entropy profile
 7. Apply speech segment size constraint
@@ -26,17 +26,20 @@ import python_speech_features as speech
 
 #sample = 'harvard_sentences/OSR_us_000_0010_8k' # To be added feature: make this an argument passed in by the user
 
+
+# Preliminaries:
 sample = 'samples/sm3_fi1'
 input_filename = sample + '.wav'
 output_filename = sample + '.png'
 
+# Read in the wavfile and convert it to an array
 rate, data = wavfile.read(input_filename)
 
 #################################################
 # 			Step 1: Filters
 #################################################
 
-# Pre-emphasis:
+# Apply a pre=emphasis filter
 
 preemp_data = speech.sigproc.preemphasis(data, 0.97)
 signal = preemp_data
@@ -50,26 +53,20 @@ signal = preemp_data
 
 # Divide the speech into overlapping frames with 25-50% overlap
 
-# Find duration of sample so we can divide it into 20 ms segments (because inertia of glottis?)
+# Want each frame to be 20ms
 
 num_samples = len(signal)
-
 duration = num_samples / float(rate)
 
-# Need to define the length of each frame (in samples) and the number of samples after the start of the prev. 
-# frame that the next frame should begin
+# Define frame length (in samples) and frame step (how many samples before the next frame starts)
 
 frame_duration_in_seconds = 0.02
-
 num_windows = int(duration / frame_duration_in_seconds)
-
 frame_length = num_samples / float(num_windows)
-
 amount_overlap = 0.75 # 25-50%
-
 frame_step = frame_length * amount_overlap
 
-# plug into python speech features function for dividing into overlapping frames
+# Use python speech features function 
 
 frames = speech.sigproc.framesig(signal, frame_length, frame_step)
 
@@ -81,8 +78,6 @@ frames = speech.sigproc.framesig(signal, frame_length, frame_step)
 
 # Construct a histogram with N bins for each frame
 # N will be 50-100, choice depending on sensitivity and computational load
-
-# iterate through the frames and create a histogram for each
 
 entropy_profile = np.empty([len(frames)])
 
@@ -102,7 +97,7 @@ for i in range(len(frames)):
 
 
 #################################################
-# Step 4: Compute the weighted entropy per frame
+# Step 4: Compute the entropy per frame
 #################################################
 
 	# Calculate the entropy using 
@@ -128,8 +123,6 @@ mu = 0.5
 # compute threshold
 gamma = ((max(entropy_profile) - min(entropy_profile))/2 ) + mu*min(entropy_profile)
 
-
-
 #################################################
 # Step 6: Apply entropy threshold to data
 #################################################
@@ -142,13 +135,14 @@ for i in range(len(entropy_profile)):
 		thresholded_entropy_profile[i] = entropy_profile[i]
 	else:
 		thresholded_entropy_profile[i] = 0
-'''
-plt.plot(thresholded_entropy_profile, linewidth=0.5, color='m')
-plt.savefig('entropy.png')
-plt.clf()
-'''
-smoothed_entropy = np.copy(thresholded_entropy_profile)
 
+#plt.plot(thresholded_entropy_profile, linewidth=0.5, color='m')
+#plt.savefig('entropy.png')
+#plt.clf()
+
+#smoothed_entropy = np.copy(thresholded_entropy_profile)
+'''
+# Smoothing out short, spiky bursts
 for i in range(len(smoothed_entropy)-1):
 	if i == 0:
 		print 'first element'
@@ -160,8 +154,13 @@ for i in range(len(smoothed_entropy)-1):
 		else:
 			if (thresholded_entropy_profile[i-1] == 0.) and (thresholded_entropy_profile[i+1] == 0.):
 				smoothed_entropy[i] = 0
+'''
 
 
+
+'''
+
+#  Use the 
 plt.plot(thresholded_entropy_profile, linewidth=2, color='m')
 plt.plot(smoothed_entropy, 'k--', linewidth=1)
 plt.savefig('entropy.png')
@@ -170,19 +169,57 @@ plt.clf()
 
 # due to artifacts, there may be false positives or negatives
 # add more criteria...
-
+'''
 #################################################
 # Step 7: Apply speech segment size constraint
 #################################################
 
 # We make an assumption here that humans do not produce very short duration sounds
-# So impose a requirement that the segments have a minimum length, l_i
-# l_i = e_i - s_i 
-# where s_i is the starting point of the ith frame and e_i is the ending
+# Using a minimum speech duration of 100 ms (Shen et al) and a minimum pause duration of 20ms
 
-# l_i should be the shortest phoneme/phone and is a function of sampling freq.
+#100 ms in frames:
+minimum_speech_duration = 0.1/frame_duration_in_seconds
 
-# additionally, we want to merge very short sounds into a single segment
+#20 ms in frames:
+minimum_pause = 1 # this is how we defined a frame previously
+
+# Iterate through our now segmented speech to measure the lengths of the segments of speech and silence
+results = []
+segment_length = 0
+speech = False
+
+for i in range(len(thresholded_entropy_profile)):
+	value = thresholded_entropy_profile[i]
+	if speech == True:
+		if value != 0:
+			segment_length += 1
+
+			# special case of ending array before end of speech
+			if i == len(thresholded_entropy_profile)-1:
+				end = i
+				final_segment_length = segment_length
+				info = [final_segment_length, start, end]
+				results.append(info)
+
+		else:
+			end = i
+			final_segment_length = segment_length
+			segment_length = 0
+			info = [final_segment_length, start, end]
+			results.append(info)
+			speech = False
+	else:
+		if value != 0:
+			start = i
+			segment_length += 1
+			speech = True
+		else:
+			speech = False
+			segment_length = 0
+
+results = np.array(results)
+
+
 
 #################################################
 # Step 8: Put it all  back together
